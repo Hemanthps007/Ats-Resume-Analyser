@@ -1,4 +1,4 @@
-# Resume ATS Analyser — Frontend Skeleton
+# Resume ATS Analyser 
 
 This is step 1 of the build: Supabase-backed auth wired into a Next.js
 (App Router) skeleton, ready to deploy to Vercel. The FastAPI backend,
