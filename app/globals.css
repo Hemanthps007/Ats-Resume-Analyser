@@ -1,0 +1,42 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: theme("colors.ink.950");
+  color: theme("colors.ink.100");
+  font-family: theme("fontFamily.body");
+}
+
+.field {
+  @apply w-full rounded-card border border-ink-700 bg-ink-900 px-4 py-2.5 text-sm text-ink-100 placeholder:text-ink-500 outline-none transition-colors focus:border-signal-400;
+}
+
+.btn-primary {
+  @apply inline-flex w-full items-center justify-center rounded-card bg-signal-500 px-4 py-2.5 text-sm font-medium text-ink-950 transition-colors hover:bg-signal-400 disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center justify-center rounded-card border border-ink-700 px-4 py-2.5 text-sm font-medium text-ink-100 transition-colors hover:border-ink-500;
+}
+
+/* Prototype Interactive Animations */
+@keyframes progressPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.animate-pulse-slow {
+  animation: progressPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.gauge-circle {
+  transition: stroke-dashoffset 0.8s ease-out;
+}
+
