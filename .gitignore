@@ -9,6 +9,13 @@ out/
 .env
 .env.local
 
+# SQLite Database
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
 # Build
 dist/
 build/
@@ -26,21 +33,3 @@ build/
 # OS
 .DS_Store
 Thumbs.db
-
-# Dependencies
-node_modules/
-
-# Next.js
-.next/
-out/
-
-# Environment
-.env
-.env.local
-
-# Build
-dist/
-build/
-
-# TypeScript
-*.tsbuildinfo

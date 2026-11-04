@@ -1,58 +1,36 @@
 # Resume ATS Analyser 
 
-This is step 1 of the build: Supabase-backed auth wired into a Next.js
-(App Router) skeleton, ready to deploy to Vercel. The FastAPI backend,
-Groq resume parsing, and JSearch job matching come next.
+An AI-powered ATS (Applicant Tracking System) resume analyzer built with Next.js 14 App Router, TypeScript, SQLite (`better-sqlite3`), and Google Gemini 1.5 Flash.
 
 ## What's in here
 
-- `app/` — landing page, `/login`, `/signup`, and a protected `/dashboard`
-- `app/actions.ts` — server actions for sign up / sign in / sign out
-- `lib/supabase/` — browser client, server client, and the middleware
-  helper that refreshes the auth session on every request
-- `middleware.ts` — redirects unauthenticated visitors away from `/dashboard`
-- `supabase/schema.sql` — the `resumes`, `analyses`, and `job_matches`
-  tables (with pgvector + row-level security) for the next build step
+- `app/` — Landing page, `/login`, `/signup`, and protected `/dashboard`
+- `app/actions.ts` — Server actions for sign up, sign in, and sign out backed by SQLite
+- `app/api/parse-resume/` — Resume text extraction (PDF / DOCX / TXT) and structured JSON parsing via Google Gemini 1.5 Flash
+- `app/api/analyze-url/` — Live job description scraping (via `cheerio`) and AI semantic gap/ATS score analysis
+- `app/api/live-jobs/` — Real-time job opportunity discovery and keyword-overlap scoring (via JSearch / Remotive APIs)
+- `lib/db.ts` — SQLite database initialization with WAL mode, salt + `crypto.scrypt` password hashing, and session persistence
+- `lib/auth.ts` — Server-side session verification helper (`getCurrentUser()`)
+- `middleware.ts` — Edge middleware session check guarding protected routes (`/dashboard`)
 
-## 1. Create the Supabase project
-
-1. Go to supabase.com → New project.
-2. Once it's up, go to Project Settings → API and copy the **Project URL**
-   and **anon public key**.
-3. Go to the SQL Editor, paste in `supabase/schema.sql`, and run it.
-   This enables pgvector and creates the tables the backend will use later —
-   auth itself needs no extra setup, Supabase handles that.
-
-## 2. Local setup
+## 1. Local Setup
 
 ```bash
+# 1. Install dependencies
 npm install
+
+# 2. Configure environment variables
 cp .env.local.example .env.local
-# paste your Supabase URL + anon key into .env.local
+# Set your GEMINI_API_KEY (and optionally RAPIDAPI_JSEARCH_KEY) in .env.local
+
+# 3. Start development server
 npm run dev
 ```
 
-Visit `http://localhost:3000`, create an account, and confirm you land on
-`/dashboard` after signing in. By default Supabase requires email
-confirmation — for faster local testing you can turn that off under
-Authentication → Providers → Email → "Confirm email".
+The SQLite database will automatically initialize at `data/ats.db` on first run.
 
-## 3. Deploy to Vercel
+## 2. Authentication Flow
 
-1. Push this folder to a GitHub repo.
-2. Import it in Vercel.
-3. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` as
-   Environment Variables in the Vercel project settings.
-4. Deploy. Auth will work immediately since Supabase hosts the actual
-   auth backend — Vercel is just serving the Next.js app.
-
-## What's next
-
-- FastAPI backend (deployed separately, e.g. Railway) that receives resume
-  uploads, calls Groq to parse/extract keywords, and writes into `resumes`
-- A `/dashboard/analyze` flow: pick a target role → FastAPI asks Groq to
-  gap-analyze against that role → writes into `analyses`
-- A job-matching call to JSearch using the extracted keywords → `job_matches`
-
-Say the word when you want the FastAPI + Groq piece scaffolded next.
-# ATS-RESUME-ANALYSER
+- **Storage**: Local SQLite database stored at `data/ats.db`.
+- **Security**: Passwords hashed with standard Node.js `crypto.scrypt` using unique per-user cryptographic salts and verified using `crypto.timingSafeEqual`.
+- **Sessions**: Stored in the `sessions` table and managed through an HTTP-only secure cookie (`ats_session_token`).

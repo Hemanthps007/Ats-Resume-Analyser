@@ -2,29 +2,19 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
+import { createUser, verifyUser, createSession, deleteSession } from "@/lib/db";
+import { SESSION_COOKIE_NAME } from "@/lib/auth";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function getFriendlyErrorMessage(message: string): string {
-  if (
-    message.includes("Unexpected token") || 
-    message.includes("DOCTYPE") || 
-    message.includes("doctype") ||
-    message.includes("Failed to fetch")
-  ) {
-    return "Configuration error: Please ensure your NEXT_PUBLIC_SUPABASE_URL in .env.local is set to a valid API URL (e.g., https://<id>.supabase.co) rather than the dashboard page URL.";
-  }
-  return message;
-}
 
 function handleAuthError(err: any, type: "signup" | "login") {
   if (err.digest?.startsWith("NEXT_REDIRECT")) {
     throw err;
   }
   console.error(`${type} error:`, err);
-  const msg = err.message || "";
-  redirect(`/${type}?error=${encodeURIComponent(getFriendlyErrorMessage(msg))}`);
+  const msg = err.message || "An unexpected error occurred.";
+  redirect(`/${type}?error=${encodeURIComponent(msg)}`);
 }
 
 export async function signUp(formData: FormData) {
@@ -35,23 +25,27 @@ export async function signUp(formData: FormData) {
     redirect(`/signup?error=${encodeURIComponent("Please enter a valid email address.")}`);
   }
 
+  if (!password || password.length < 6) {
+    redirect(`/signup?error=${encodeURIComponent("Password must be at least 6 characters.")}`);
+  }
+
   try {
-    const supabase = createClient();
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const user = createUser(email, password);
+    const token = createSession(user.id);
 
-    if (error) {
-      redirect(`/signup?error=${encodeURIComponent(getFriendlyErrorMessage(error.message))}`);
-    }
-
-    if (data?.session) {
-      revalidatePath("/", "layout");
-      redirect("/dashboard");
-    }
+    cookies().set(SESSION_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60,
+      path: "/",
+    });
   } catch (err: any) {
     handleAuthError(err, "signup");
   }
 
-  redirect("/signup?message=Check your email to confirm your account");
+  revalidatePath("/", "layout");
+  redirect("/dashboard");
 }
 
 export async function signIn(formData: FormData) {
@@ -64,12 +58,20 @@ export async function signIn(formData: FormData) {
   }
 
   try {
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      redirect(`/login?error=${encodeURIComponent(getFriendlyErrorMessage(error.message))}`);
+    const user = verifyUser(email, password);
+    if (!user) {
+      redirect(`/login?error=${encodeURIComponent("Invalid email or password.")}`);
     }
+
+    const token = createSession(user.id);
+
+    cookies().set(SESSION_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60,
+      path: "/",
+    });
   } catch (err: any) {
     handleAuthError(err, "login");
   }
@@ -79,9 +81,15 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signOut() {
-  const supabase = createClient();
-  await supabase.auth.signOut();
+  try {
+    const token = cookies().get(SESSION_COOKIE_NAME)?.value;
+    if (token) {
+      deleteSession(token);
+    }
+    cookies().delete(SESSION_COOKIE_NAME);
+  } catch (err) {
+    console.error("Sign out error:", err);
+  }
   revalidatePath("/", "layout");
   redirect("/login");
 }
-
