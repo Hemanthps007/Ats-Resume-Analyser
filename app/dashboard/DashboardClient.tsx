@@ -100,9 +100,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [animatedScore, setAnimatedScore] = useState(0);
 
   // Real-time API States
-  const [geminiKey, setGeminiKey] = useState("");
-  const [jsearchKey, setJsearchKey] = useState("");
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [parsedResume, setParsedResume] = useState<ParsedResume | null>(null);
 
   // Tab & Scraping States
@@ -120,35 +118,14 @@ export default function DashboardClient({ user }: DashboardClientProps) {
 
   const activeRoleData = ROLES_DATA[selectedRole] || ROLES_DATA["Frontend Engineer"];
 
-  // Load API keys on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setGeminiKey(localStorage.getItem("gemini_api_key") || "");
-      setJsearchKey(localStorage.getItem("jsearch_api_key") || "");
-    }
-  }, []);
-
-  const handleSaveKeys = (e: React.FormEvent) => {
-    e.preventDefault();
-    localStorage.setItem("gemini_api_key", geminiKey);
-    localStorage.setItem("jsearch_api_key", jsearchKey);
-    setIsSettingsOpen(false);
-
-    if (parsedResume) {
-      fetchLiveJobs(parsedResume.skills);
-    }
-  };
-
   const fetchLiveJobs = async (skillsList: string[]) => {
     setIsLoadingLiveJobs(true);
     setLiveJobsError("");
     try {
-      const storedJsearchKey = localStorage.getItem("jsearch_api_key") || "";
       const res = await fetch("/api/live-jobs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-jsearch-key": storedJsearchKey,
         },
         body: JSON.stringify({ skills: skillsList }),
       });
@@ -171,6 +148,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     setIsUploading(true);
     setUploadProgress(10);
     setIsUploaded(false);
+    setUploadError("");
 
     const progressInterval = setInterval(() => {
       setUploadProgress((prev) => (prev < 90 ? prev + 10 : prev));
@@ -180,12 +158,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       const formData = new FormData();
       formData.append("file", uploadedFile);
 
-      const storedGeminiKey = localStorage.getItem("gemini_api_key") || "";
       const res = await fetch("/api/parse-resume", {
         method: "POST",
-        headers: {
-          "x-gemini-key": storedGeminiKey,
-        },
         body: formData,
       });
 
@@ -212,7 +186,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       fetchLiveJobs(data.skills || []);
     } catch (err: any) {
       console.error(err);
-      alert(
+      setUploadError(
         err.message ||
           "Error processing resume. Please verify your Gemini API key in settings (top right)."
       );
@@ -281,12 +255,10 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     }, 3200);
 
     try {
-      const storedGeminiKey = localStorage.getItem("gemini_api_key") || "";
       const res = await fetch("/api/analyze-url", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-gemini-key": storedGeminiKey,
         },
         body: JSON.stringify({
           url: jobUrl,
@@ -406,26 +378,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
             </h1>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="btn-ghost text-xs px-4 py-2 hover:bg-ink-800/40 flex items-center gap-2"
-            >
-              <svg className="h-4 w-4 text-signal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-              API Keys
-            </button>
             <form action={signOut}>
               <button type="submit" className="btn-ghost text-xs px-4 py-2 hover:bg-ink-800/40">
                 Sign out
@@ -444,6 +396,23 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 Step 01
               </p>
               <h2 className="mt-1 font-display text-lg text-ink-50">Upload Resume</h2>
+
+              {uploadError && (
+                <div className="mt-4 rounded-card border border-red-800 bg-red-950/60 p-4 text-xs text-red-200">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="font-semibold text-red-300">Resume Analysis Failed</p>
+                      <p className="leading-relaxed">{uploadError}</p>
+                    </div>
+                    <button
+                      onClick={() => setUploadError("")}
+                      className="text-red-400 hover:text-red-200 text-sm font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {!file && !isUploading && (
                 <div
@@ -522,12 +491,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   <button onClick={triggerReset} className="text-xs text-ink-400 hover:text-ink-200 underline">
                     Clear
                   </button>
-                </div>
-              )}
-
-              {!geminiKey && (
-                <div className="mt-4 rounded-card bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-300">
-                  ⚠️ <strong>Gemini Key Missing</strong>: Please click the <strong>API Keys</strong> button above to save your Gemini key for real-time parsing.
                 </div>
               )}
             </div>
@@ -955,77 +918,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
         </div>
       </div>
 
-      {/* Settings Drawer Backdrop */}
-      {isSettingsOpen && (
-        <div
-          onClick={() => setIsSettingsOpen(false)}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs transition-opacity duration-300"
-        />
-      )}
-
-      {/* Settings Drawer */}
-      <div
-        className={`fixed inset-y-0 right-0 z-50 w-full max-w-md border-l border-ink-800 bg-ink-950 p-6 shadow-2xl transition-transform duration-300 ${
-          isSettingsOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <div className="flex items-center justify-between border-b border-ink-800 pb-4">
-          <h2 className="font-display text-lg text-ink-50">Configuration Settings</h2>
-          <button
-            onClick={() => setIsSettingsOpen(false)}
-            className="text-ink-400 hover:text-ink-200 text-sm font-mono"
-          >
-            ✕ Close
-          </button>
-        </div>
-
-        <form onSubmit={handleSaveKeys} className="mt-6 space-y-6">
-          <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-ink-400 mb-2">
-              Google Gemini API Key
-            </label>
-            <input
-              type="password"
-              value={geminiKey}
-              onChange={(e) => setGeminiKey(e.target.value)}
-              placeholder="AI_..."
-              className="field font-mono"
-            />
-            <p className="text-[10px] text-ink-500 mt-2 leading-relaxed">
-              Used for resume text parsing and real-time gap analysis of scanned job descriptions. You can request a free API key at Google AI Studio.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-ink-400 mb-2">
-              JSearch API Key (Optional)
-            </label>
-            <input
-              type="password"
-              value={jsearchKey}
-              onChange={(e) => setJsearchKey(e.target.value)}
-              placeholder="Paste RapidAPI JSearch Key..."
-              className="field font-mono"
-            />
-            <p className="text-[10px] text-ink-500 mt-2 leading-relaxed">
-              For pulling local target listings. If left blank, the system automatically uses Remotive's keyless API to query remote software jobs.
-            </p>
-          </div>
-
-          <div className="pt-4 border-t border-ink-800 flex gap-3">
-            <button type="submit" className="btn-primary">
-              Save Keys
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsSettingsOpen(false)}
-              className="btn-ghost w-auto px-4"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
     </main>
   );
 }

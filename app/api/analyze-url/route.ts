@@ -5,13 +5,12 @@ import * as cheerio from "cheerio";
 export async function POST(request: NextRequest) {
   try {
     const { url, resumeText } = await request.json();
-    const clientApiKey = request.headers.get("x-gemini-key");
-    const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Gemini API Key is missing. Please configure it in Settings or .env.local." },
-        { status: 400 }
+        { error: "GEMINI_API_KEY is not configured in your .env file." },
+        { status: 500 }
       );
     }
 
@@ -50,17 +49,8 @@ export async function POST(request: NextRequest) {
     const cleanText = $("body")
       .text()
       .replace(/\s+/g, " ")
-      .trim();
-
-    if (!cleanText || cleanText.length < 100) {
-      return NextResponse.json(
-        { error: "The webpage content seems too short or protected. Please paste the job description text instead." },
-        { status: 400 }
-      );
-    }
-
-    // Truncate webpage content if it's exceptionally large to save tokens
-    const truncatedPageText = cleanText.substring(0, 15000);
+      .trim()
+      .slice(0, 8000); // Send first 8,000 characters for token efficiency
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
@@ -68,25 +58,25 @@ export async function POST(request: NextRequest) {
       generationConfig: { responseMimeType: "application/json" },
     });
 
-    const prompt = `You are a professional ATS Recruiter & Gap Analyst. 
-Analyze the job description text from the website URL provided below and evaluate it against the candidate's resume.
+    const prompt = `You are an expert technical recruiter and ATS system.
+Analyze the following job description extracted from a job posting URL and compare it with the candidate's resume text.
+
+CANDIDATE RESUME:
+---
+${resumeText || "No resume text provided. Analyze strictly based on job description."}
+---
 
 JOB DESCRIPTION WEBPAGE CONTENT:
-"""
-${truncatedPageText}
-"""
+---
+${cleanText}
+---
 
-CANDIDATE RESUME TEXT:
-"""
-${resumeText || "No resume uploaded yet. Evaluate the job posting text generally."}
-"""
-
-Evaluate the following in details:
-1. Job Title (under "jobTitle")
-2. Company Name (under "company") - try to extract from text or URL domain if not clear
-3. Location (under "location")
-4. ATS Match Score (under "atsScore", an integer from 0 to 100 based on how well the candidate's resume matches the job description. If no resume is uploaded, default to 0)
-5. Matching Skills (under "matchingSkills", a list of strings of tools, skills or qualifications in the job that are also in the resume)
+Provide a comprehensive, brutally honest gap analysis and scoring. Return a JSON object with:
+1. Target Job Title (under "jobTitle")
+2. Company Name (under "company", extract if available or "Not specified")
+3. Job Location (under "location", extract if available or "Remote/Unspecified")
+4. ATS Score (under "atsScore", an integer 0-100 indicating alignment between the candidate's resume and this job)
+5. Matching Skills (under "matchingSkills", a list of strings of skills that the candidate HAS which match this job)
 6. Missing Skills / Gaps (under "missingSkills", a list of strings of skills or requirements listed in the job description that are NOT in the candidate's resume)
 7. Specific Optimization Suggestions (under "suggestions", an array of objects. Each object should have "type" ("keyword" or "bullet_rewrite" or "general"), "title" (short 2-5 words title), and "description" (detailed explanation on how to tailor the resume for this gap)).
 8. Interview Prep Tips (under "interviewTips", an array of strings of potential interview topics or advice based on their gap).
@@ -116,8 +106,12 @@ Respond ONLY with a JSON object matching this schema:
     return NextResponse.json({ success: true, ...gapAnalysis });
   } catch (error: any) {
     console.error("URL Analysis error:", error);
+    let msg = error?.message || "Failed to analyze URL.";
+    if (msg.includes("API key not valid") || msg.includes("API_KEY_INVALID") || msg.includes("400 Bad Request")) {
+      msg = "Invalid Google Gemini API Key. Please verify the GEMINI_API_KEY in your .env file.";
+    }
     return NextResponse.json(
-      { error: error.message || "Failed to analyze URL." },
+      { error: msg },
       { status: 500 }
     );
   }

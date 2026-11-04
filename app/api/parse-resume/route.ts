@@ -6,14 +6,12 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
-    const clientApiKey = request.headers.get("x-gemini-key");
-
-    const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Gemini API Key is missing. Please configure it in Settings or .env.local." },
-        { status: 400 }
+        { error: "GEMINI_API_KEY is not configured in your .env file." },
+        { status: 500 }
       );
     }
 
@@ -67,30 +65,21 @@ Respond ONLY with a JSON object matching this schema:
 
       const responseText = result.response.text();
       resumeJson = JSON.parse(responseText);
-
     } else {
       let textContent = "";
 
-      if (mimeType === "text/plain" || fileName.endsWith(".txt")) {
-        textContent = buffer.toString("utf-8");
-      } else if (
-        mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      if (
+        mimeType.includes("wordprocessingml") ||
         fileName.endsWith(".docx")
       ) {
-        const mammothResult = await mammoth.extractRawText({ buffer });
-        textContent = mammothResult.value;
+        const parsedDocx = await mammoth.extractRawText({ buffer });
+        textContent = parsedDocx.value;
       } else {
-        return NextResponse.json(
-          { error: "Unsupported file format. Please upload PDF, DOCX, or TXT." },
-          { status: 400 }
-        );
+        // Plain text fallback
+        textContent = buffer.toString("utf-8");
       }
 
-      if (!textContent.trim()) {
-        return NextResponse.json({ error: "Extracted text content is empty." }, { status: 400 });
-      }
-
-      const prompt = `You are a professional ATS Resume Parser. Read and parse this resume plain text:
+      const prompt = `You are a professional ATS Resume Parser. Here is the plain text of a candidate's resume:
 ---
 ${textContent}
 ---
@@ -120,8 +109,12 @@ Respond ONLY with a JSON object matching this schema:
     return NextResponse.json({ success: true, ...resumeJson });
   } catch (error: any) {
     console.error("Resume parsing error:", error);
+    let msg = error?.message || "Failed to parse resume.";
+    if (msg.includes("API key not valid") || msg.includes("API_KEY_INVALID") || msg.includes("400 Bad Request")) {
+      msg = "Invalid Google Gemini API Key. Please verify the GEMINI_API_KEY in your .env file.";
+    }
     return NextResponse.json(
-      { error: error.message || "Failed to parse resume." },
+      { error: msg },
       { status: 500 }
     );
   }

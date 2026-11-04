@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const { skills } = await request.json();
-    const jsearchKey = request.headers.get("x-jsearch-key") || process.env.RAPIDAPI_JSEARCH_KEY;
+    const jsearchKey = process.env.RAPIDAPI_JSEARCH_KEY?.trim();
 
     // Use primary skill as the search term, default to "developer" if empty
     const primarySkill = skills && skills.length > 0 ? skills[0] : "developer";
