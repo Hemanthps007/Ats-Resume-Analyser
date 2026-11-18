@@ -213,7 +213,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       fetchLiveJobs(data.skills || []);
     } catch (err: any) {
       console.error(err);
-      setUploadError(err.message || "Error processing resume. Please verify your GEMINI_API_KEY.");
+      setUploadError(err.message || "Error processing resume. Please ensure the file is a valid PDF, DOCX, or TXT document.");
       setFile(null);
       setFileName("");
       setIsUploaded(false);
@@ -322,7 +322,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       setUrlAnalyzerLogs((prev) => [...prev, "[INFO] Page received. Stripping nav/footers and extracting core JD requirements..."]);
     }, 900);
     const t2 = setTimeout(() => {
-      setUrlAnalyzerLogs((prev) => [...prev, "[INFO] Evaluating ATS keyword match and gap density via Gemini 1.5..."]);
+      setUrlAnalyzerLogs((prev) => [...prev, "[INFO] Evaluating ATS keyword match and gap density via trained ML model..."]);
     }, 1800);
 
     try {
@@ -804,7 +804,7 @@ Required Qualifications:
                       disabled={isAnalyzingJd || !jdText.trim() || !isUploaded}
                       className="btn-primary w-full py-2.5 text-xs font-semibold"
                     >
-                      {isAnalyzingJd ? "Analyzing Alignment via Gemini..." : "Run Direct JD Gap Scan →"}
+                      {isAnalyzingJd ? "Analyzing Alignment via ML Model..." : "Run Direct JD Gap Scan →"}
                     </button>
                     {!isUploaded && (
                       <p className="text-[10px] text-amber-400 text-center">

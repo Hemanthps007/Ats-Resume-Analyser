@@ -1,4 +1,5 @@
 import { MarketRole, MarketSkill } from "./rolesData";
+import { predictMlAtsScore } from "./ml/atsModel";
 
 export interface SkillMatchResult {
   name: string;
@@ -294,37 +295,12 @@ export function calculateAtsDiagnostics(
   // Deduct for passive weak phrases
   verbsScore = Math.max(20, verbsScore - weakPhrasesFound.length * 8);
 
-  // 5. Master Overall ATS Score (Weighted Combination)
-  // Keywords: 35%, Metrics: 25%, Structure: 20%, Verbs: 20%
-  const overallScore = Math.round(
-    keywordScore * 0.35 +
-    impactScore * 0.25 +
-    structuralScore * 0.20 +
-    verbsScore * 0.20
-  );
-
-  // Tier Assignment
-  let ratingTier: "Exceptional" | "Competitive" | "Moderate" | "Needs Optimization";
-  let ratingColor: string;
-  let summaryFeedback: string;
-
-  if (overallScore >= 85) {
-    ratingTier = "Exceptional";
-    ratingColor = "text-emerald-400 border-emerald-500/40 bg-emerald-500/10";
-    summaryFeedback = "Outstanding candidate profile! Your resume strongly resonates with 2026 ATS filters and hiring manager criteria for this role.";
-  } else if (overallScore >= 70) {
-    ratingTier = "Competitive";
-    ratingColor = "text-teal-400 border-teal-500/40 bg-teal-500/10";
-    summaryFeedback = "Strong market fit! Incorporating a few missing high-priority tech keywords and metric figures will push your application into the top 5 percentile.";
-  } else if (overallScore >= 55) {
-    ratingTier = "Moderate";
-    ratingColor = "text-amber-400 border-amber-500/40 bg-amber-500/10";
-    summaryFeedback = "Moderate alignment. Your resume has foundational qualifications but misses several critical role keywords that modern ATS filters screen for.";
-  } else {
-    ratingTier = "Needs Optimization";
-    ratingColor = "text-rose-400 border-rose-500/40 bg-rose-500/10";
-    summaryFeedback = "Significant ATS gaps identified. Key role keywords and quantifiable impact numbers are underrepresented, risking automated filter rejection.";
-  }
+  // 5. Machine Learning Predicted ATS Score
+  const mlResult = predictMlAtsScore(text, userSkills, role);
+  const overallScore = mlResult.atsScore;
+  const ratingTier = mlResult.ratingTier;
+  const ratingColor = mlResult.ratingColor;
+  const summaryFeedback = mlResult.summaryFeedback;
 
   // 6. Actionable Recommendations
   const recommendations: AtsDiagnostics["recommendations"] = [];
